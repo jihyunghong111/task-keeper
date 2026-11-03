@@ -45,26 +45,20 @@ uv run uvicorn app.main:app --reload
 - `POST /tasks` 할 일 생성. 본문 예: `{"title": "장보기", "tags": ["개인", "쇼핑"]}`
 - `GET /tasks/{id}` 단건 조회
 
-## 알려진 버그: 목록 조회 N+1
+## 해결된 이슈: 목록 조회 N+1 (#1, #2)
 
-`app/services/task_service.py`의 `list_tasks()`는 할 일을 한 번에 조회하지만, 응답을 직렬화할 때 각 할 일의 태그(`task.tags`)를 따로 조회합니다. 할 일이 N개면 태그 조회 쿼리가 N번 더 실행됩니다. 할 일이 늘수록 `GET /tasks`가 느려집니다.
-
-실제 실행되는 쿼리 수를 보려면 echo를 켜고 실행하세요.
-
-```
-SQLALCHEMY_ECHO=1 uv run uvicorn app.main:app
-```
-
-`GET /tasks`를 호출하면, 할 일 목록 SELECT 한 번 뒤에 태그 SELECT가 할 일 개수만큼 이어지는 것을 콘솔에서 확인할 수 있습니다.
-
-## 수정 방향
-
-`list_tasks()`의 쿼리에 `selectinload`를 적용해 태그를 한 번에 가져옵니다.
+`list_tasks()`가 할 일을 조회한 뒤 각 할 일의 태그를 따로 조회해 할 일 개수만큼 쿼리가 추가로 실행되는 N+1 문제가 있었으나, `selectinload`를 적용해 해결했습니다.
 
 ```python
 from sqlalchemy.orm import selectinload
 
 tasks = db.query(Task).options(selectinload(Task.tags)).all()
+```
+
+실제 쿼리 수를 확인하려면 echo를 켜고 실행하세요.
+
+```
+SQLALCHEMY_ECHO=1 uv run uvicorn app.main:app
 ```
 
 이 변경이 책 3.8 실습의 작업 내용입니다. 이슈 생성부터 커밋, PR, 리뷰, 리뷰 반영까지 다섯 스킬로 처리합니다.
